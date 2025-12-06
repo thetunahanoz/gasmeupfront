@@ -4,6 +4,7 @@ import {
     GASMEUP_PACKAGE_ID,
     GASMEUP_MODULE,
     BACKEND_RELAY_URL,
+    BACKEND_RELAY_PUBKEY,
 } from '../constants';
 
 export interface RelayResponse {
@@ -63,6 +64,8 @@ export function useSwapTransaction() {
 
         // Set sender for proper transaction construction
         txb.setSender(senderAddress);
+
+        txb.setGasOwner(BACKEND_RELAY_PUBKEY);
 
         // 2. Sign the transaction (user wallet prompt)
         const { bytes, signature } = await signTransaction({

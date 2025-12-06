@@ -13,4 +13,5 @@ export const USDT_TYPE = '0x2::sui::SUI'; // Using SUI as Token for MVP Demo
 export const SUI_CLOCK_OBJECT_ID = '0x6';
 
 // Backend relay endpoint
-export const BACKEND_RELAY_URL = '/api/relay'; // relative URL - configure for your backend
+export const BACKEND_RELAY_URL = 'http://localhost:3001/sponsor';
+export const BACKEND_RELAY_PUBKEY = '0x7b36c63375bfb148650cbe7a0ccbc690e87a95cd85acf495ab41ffb9a1b83fdf';

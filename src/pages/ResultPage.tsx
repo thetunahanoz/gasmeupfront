@@ -1,9 +1,17 @@
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useSuiClientContext } from '@mysten/dapp-kit';
 
 export default function ResultPage() {
     const navigate = useNavigate();
     const location = useLocation();
+    const { network } = useSuiClientContext();
+
     const success = location.state?.success ?? true;
+    const digest = location.state?.digest;
+    const error = location.state?.error;
+
+    const networkPath = network === 'mainnet' ? 'mainnet' : 'testnet';
+    const suiScanUrl = digest ? `https://suiscan.xyz/${networkPath}/tx/${digest}` : null;
 
     if (success) {
         return (
@@ -22,9 +30,16 @@ export default function ResultPage() {
                     >
                         <span className="truncate">Panoya Dön</span>
                     </button>
-                    <button className="flex h-12 w-full min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-full bg-transparent text-sm font-bold leading-normal tracking-[0.015em] text-white/70 transition-colors hover:text-white">
-                        <span className="truncate">SuiScan'de Görüntüle</span>
-                    </button>
+                    {suiScanUrl && (
+                        <a
+                            href={suiScanUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex h-12 w-full min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-full bg-transparent text-sm font-bold leading-normal tracking-[0.015em] text-white/70 transition-colors hover:text-white"
+                        >
+                            <span className="truncate">SuiScan'de Görüntüle</span>
+                        </a>
+                    )}
                 </div>
             </div>
         );
@@ -37,7 +52,9 @@ export default function ResultPage() {
             </div>
             <div className="flex flex-col items-center gap-2">
                 <h1 className="text-2xl font-bold tracking-tight text-white">İşlem Başarısız Oldu</h1>
-                <p className="max-w-xs text-sm text-white/60">İşlem tamamlanamadı. Lütfen bakiyenizi kontrol edip tekrar deneyin.</p>
+                <p className="max-w-xs text-sm text-white/60">
+                    {error || 'İşlem tamamlanamadı. Lütfen bakiyenizi kontrol edip tekrar deneyin.'}
+                </p>
             </div>
             <div className="flex w-full flex-col items-center gap-3">
                 <button
@@ -46,8 +63,11 @@ export default function ResultPage() {
                 >
                     <span className="truncate">Tekrar Dene</span>
                 </button>
-                <button className="flex h-12 w-full min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-full bg-transparent text-sm font-bold leading-normal tracking-[0.015em] text-white/70 transition-colors hover:text-white">
-                    <span className="truncate">Destek</span>
+                <button
+                    onClick={() => navigate('/')}
+                    className="flex h-12 w-full min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-full bg-transparent text-sm font-bold leading-normal tracking-[0.015em] text-white/70 transition-colors hover:text-white"
+                >
+                    <span className="truncate">Ana Sayfa</span>
                 </button>
             </div>
         </div>
