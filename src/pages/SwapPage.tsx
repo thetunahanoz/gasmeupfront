@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useCurrentAccount } from '@mysten/dapp-kit';
 import TokenInput from '../components/TokenInput';
 
-const SUI_PRICE_USDT = 1.25;
+const SUI_PRICE_USDT = 1; // 1:1 for SUI demo
+
 const FEE_PERCENT = 0.003; // 0.3%
 
 export default function SwapPage() {
@@ -53,7 +54,7 @@ export default function SwapPage() {
                 <TokenInput
                     label="Gönderilecek Token"
                     balance={account ? "1,240.50" : "0.00"} // Mock balance for now, would be fetched from chain
-                    tokenSymbol="USDT"
+                    tokenSymbol="SUI (Demo)"
                     tokenIcon="https://lh3.googleusercontent.com/aida-public/AB6AXuBqqKdDSim7kC3zmMTjESd7HGgX05d47ylIh1OCjsH5Ap02R2m5P_850y-Rl1HXJ4Jw-L9Gs48K9On82ExAPwmaGoqum_lUHMcJiB65CNTXMImvWHc4hR7KWyl2Hf5tq-DDmz7LWJ5a7q0kUBYXE6G55_3HAui6-aqDr80_fskNbyaOcCavGjY7sr00zCdT2wuXHa9ZoYfZZ9X9gyKFFaXCWiTXR_8G64lTfvgcl_UHG1g2Ik4tCLUToVB7-RCJVnsXIBOXSN0KudwX"
                     showDropdown
                     value={payAmount}

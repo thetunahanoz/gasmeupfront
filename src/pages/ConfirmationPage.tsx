@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useCurrentAccount, useSuiClientQuery } from '@mysten/dapp-kit';
 import { useSwapTransaction } from '../hooks/useSwapTransaction';
 import { USDT_TYPE } from '../constants';
 
@@ -9,22 +10,43 @@ export default function ConfirmationPage() {
     const { payAmount, receiveAmount } = location.state || { payAmount: '0', receiveAmount: '0' };
 
     const { swapTokensForGas } = useSwapTransaction();
+    const account = useCurrentAccount();
+    const { data: coins } = useSuiClientQuery('getCoins', {
+        owner: account?.address || '',
+        coinType: USDT_TYPE
+    });
+
     const [isProcessing, setIsProcessing] = useState(false);
 
     const handleConfirm = async () => {
         setIsProcessing(true);
         try {
-            // Mock coin selection: in reality we need to fetch user's coins and pick one
-            // For this demo/MVP, we'll use a placeholder Coin ID string.
-            // The user would need to have this exact object or we implement coin selection.
-            // IMPORTANT: This will fail on chain if "0x..." is invalid or doesn't exist.
-            const mockCoinId = '0x0000000000000000000000000000000000000000000000000000000000000000';
+            if (!coins || coins.data.length === 0) {
+                alert("No SUI/Token coins found in wallet!");
+                return;
+            }
+
+            // Simple MVP selection: Pick first coin with enough balance
+            // In product: Merge coins or select best fit
+            // GASMEUP FIX: We must leave enough gas (e.g. 0.5 SUI) in the object if we are splitting from it.
+            const GAS_BUFFER_MIST = 500_000_000; // 0.5 SUI
+            const requiredAmount = Number(payAmount) * 1_000_000_000 + GAS_BUFFER_MIST;
+
+            const coinToPay = coins.data.find(c => parseInt(c.balance) > requiredAmount);
+
+            if (!coinToPay) {
+                alert(`Insufficient balance! You need at least ${payAmount} SUI + 0.5 SUI for gas in a single object.`);
+                return;
+            }
+
+            const mockCoinId = coinToPay.coinObjectId;
 
             await swapTokensForGas(
                 USDT_TYPE,
                 mockCoinId,
-                Number(payAmount) * 1_000_000, // Assuming 6 decimals for USDT
-                Number(receiveAmount) * 1_000_000_000 * 0.95 // Min gas out with slippage (decimals 9 for SUI)
+                Number(payAmount) * 1_000_000_000,
+                Number(receiveAmount) * 1_000_000_000 * 0.95,
+                account?.address || ''
             );
 
             navigate('/result', { state: { success: true } });
@@ -60,7 +82,7 @@ export default function ConfirmationPage() {
                             ></div>
                             <div className="flex w-full min-w-0 grow flex-col items-stretch justify-center gap-1 sm:px-4">
                                 <p className="text-[#A0A0A0] text-sm font-normal leading-normal">Ödeyeceğin Tutar</p>
-                                <p className="text-white text-2xl font-bold leading-tight tracking-[-0.015em]">{payAmount} USDT</p>
+                                <p className="text-white text-2xl font-bold leading-tight tracking-[-0.015em]">{payAmount} SUI (Demo)</p>
                             </div>
                         </div>
                     </div>
@@ -94,7 +116,7 @@ export default function ConfirmationPage() {
                         </div>
                         <div className="flex justify-between gap-x-6 pt-2">
                             <p className="text-[#A0A0A0] text-sm font-normal leading-normal">Toplam Maliyet</p>
-                            <p className="text-white text-sm font-medium leading-normal text-right">{payAmount} USDT</p>
+                            <p className="text-white text-sm font-medium leading-normal text-right">{payAmount} SUI (Demo)</p>
                         </div>
                     </div>
                 </div>
