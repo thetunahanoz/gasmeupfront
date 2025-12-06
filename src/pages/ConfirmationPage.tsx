@@ -41,7 +41,8 @@ export default function ConfirmationPage() {
 
             const mockCoinId = coinToPay.coinObjectId;
 
-            await swapTokensForGas(
+            // Call the swap function - now returns RelayResponse
+            const result = await swapTokensForGas(
                 USDT_TYPE,
                 mockCoinId,
                 Number(payAmount) * 1_000_000_000,
@@ -49,7 +50,12 @@ export default function ConfirmationPage() {
                 account?.address || ''
             );
 
-            navigate('/result', { state: { success: true } });
+            if (result.success) {
+                navigate('/result', { state: { success: true, digest: result.digest } });
+            } else {
+                console.error("Swap failed:", result.error);
+                navigate('/result', { state: { success: false, error: result.error } });
+            }
         } catch (error) {
             console.error("Swap failed", error);
             navigate('/result', { state: { success: false } });

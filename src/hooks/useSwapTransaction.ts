@@ -1,30 +1,44 @@
 import { Transaction } from '@mysten/sui/transactions';
-import { useSignAndExecuteTransaction } from '@mysten/dapp-kit';
+import { useSignTransaction } from '@mysten/dapp-kit';
 import {
     GASMEUP_PACKAGE_ID,
-    GASMEUP_MODULE
+    GASMEUP_MODULE,
+    BACKEND_RELAY_URL,
 } from '../constants';
 
-export function useSwapTransaction() {
-    const { mutateAsync: signAndExecute } = useSignAndExecuteTransaction();
+export interface RelayResponse {
+    success: boolean;
+    digest?: string;
+    error?: string;
+}
 
+export function useSwapTransaction() {
+    const { mutateAsync: signTransaction } = useSignTransaction();
+
+    /**
+     * Build, sign, and submit a swap transaction via backend relay.
+     * 
+     * Flow:
+     * 1. Build the transaction (PTB)
+     * 2. User signs via wallet (sign-only, no execution)
+     * 3. Serialize signed tx and POST to backend
+     * 4. Backend pays gas and submits to Sui network
+     */
     const swapTokensForGas = async (
         tokenType: string,
-        coinId: string, // ID of the specific Coin<T> object to swap
-        amount: number, // We might not need this if we rely on coin object balance, but pay_for_gas takes gas_budget_mist
-        gasBudgetMist: number, // This matches the 2nd arg of pay_for_gas
-        senderAddress: string // Needed to return the split coin to the user
-    ) => {
+        coinId: string,
+        amount: number,
+        gasBudgetMist: number,
+        senderAddress: string
+    ): Promise<RelayResponse> => {
+        // 1. Build the transaction
         const txb = new Transaction();
 
         let paymentCoin;
         let isSuiSplit = false;
 
-        // If the token is SUI, we should split from the Gas Coin to avoid "double spend" / "no gas" error
-        // because the wallet needs a gas object, and if we pass the only SUI coin as argument, it fails.
+        // If the token is SUI, split from Gas Coin to avoid "double spend" error
         if (tokenType === '0x2::sui::SUI') {
-            // Calculate amount to split (payAmount in MIST)
-            // We need to pass 'amount' argument to this function correctly in ConfirmationPage
             const splitAmount = txb.pure.u64(amount);
             paymentCoin = txb.splitCoins(txb.gas, [splitAmount]);
             isSuiSplit = true;
@@ -32,7 +46,7 @@ export function useSwapTransaction() {
             paymentCoin = txb.object(coinId);
         }
 
-        // Calling gasmeup::router::pay_for_gas<T>(payment: &mut Coin<T>, gas_budget_mist: u64)
+        // Call gasmeup::router::pay_for_gas<T>
         txb.moveCall({
             target: `${GASMEUP_PACKAGE_ID}::${GASMEUP_MODULE}::pay_for_gas`,
             typeArguments: [tokenType],
@@ -42,17 +56,65 @@ export function useSwapTransaction() {
             ],
         });
 
-        // If we split the coin, we must transfer it back to the user or destroy it if 0.
-        // Since pay_for_gas takes &mut Coin and splits off the cost, the `paymentCoin` still holds
-        // (Original Amount - Cost). Use transferObjects to send it back.
+        // Transfer remaining split coin back to user
         if (isSuiSplit) {
             txb.transferObjects([paymentCoin], txb.pure.address(senderAddress));
         }
 
-        return signAndExecute({
+        // Set sender for proper transaction construction
+        txb.setSender(senderAddress);
+
+        // 2. Sign the transaction (user wallet prompt)
+        const { bytes, signature } = await signTransaction({
             transaction: txb,
         });
+
+        // 3. Submit to backend relay
+        const response = await submitToBackend(bytes, signature);
+
+        return response;
     };
 
-    return { swapTokensForGas };
+    /**
+     * Submit signed transaction bytes + signature to backend relay.
+     * Backend will pay gas and execute on Sui network.
+     */
+    const submitToBackend = async (
+        txBytes: string,
+        signature: string
+    ): Promise<RelayResponse> => {
+        try {
+            const response = await fetch(BACKEND_RELAY_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    txBytes,
+                    signature,
+                }),
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                return {
+                    success: false,
+                    error: `Backend error: ${response.status} - ${errorText}`,
+                };
+            }
+
+            const result = await response.json();
+            return {
+                success: true,
+                digest: result.digest,
+            };
+        } catch (error) {
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error',
+            };
+        }
+    };
+
+    return { swapTokensForGas, submitToBackend };
 }

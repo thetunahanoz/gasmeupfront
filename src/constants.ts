@@ -11,3 +11,6 @@ export const TREASURY_CONFIG_ID = '0x0'; // Placeholder for TreasuryConfig
 // Tokens
 export const USDT_TYPE = '0x2::sui::SUI'; // Using SUI as Token for MVP Demo
 export const SUI_CLOCK_OBJECT_ID = '0x6';
+
+// Backend relay endpoint
+export const BACKEND_RELAY_URL = '/api/relay'; // relative URL - configure for your backend

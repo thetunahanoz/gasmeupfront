@@ -9,7 +9,7 @@
 - ✅ **Atomic swaps** via Programmable Transaction Blocks (PTB)
 - ✅ **Oracle-based pricing** with 10% profit markup
 - ✅ **5% protocol commission** on all transactions
-- ✅ **Enoki-ready** for sponsored transactions
+- ✅ **Backend-relay ready** for sponsored transactions
 - ✅ **Type-safe** generic token support
 
 ## Module Summary
