@@ -1,21 +1,21 @@
 export const NETWORK = 'testnet'; // or 'mainnet'
 
-export const GASMEUP_PACKAGE_ID = '0xc642e2b82e15dce050671a35e12f16cb19256bdc8cf0438bc94d866563bf9b2a';
+export const GASMEUP_PACKAGE_ID = '0x74995641a3d72177fa7c9d28660b6ec84b22aa6fb3e30a8df3148632e40a04bc';
 export const GASMEUP_MODULE = 'router';
 
 export const SUI_CLOCK_OBJECT_ID = '0x6';
 
 // Tokens
 export const SUI_TYPE = '0x2::sui::SUI';
-export const USDC_TYPE = '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC';
+export const USDC_TYPE = '0x74995641a3d72177fa7c9d28660b6ec84b22aa6fb3e30a8df3148632e40a04bc::mock_usdc::MOCK_USDC';
 
 // Decimals
 export const SUI_DECIMALS = 9;
 export const USDC_DECIMALS = 6;
 
 // Vaults
-export const SUI_VAULT_ID = '0x0';
-export const USDC_VAULT_ID = '0x0';
+export const SUI_VAULT_ID = '0xa53e589ba1d6950b5655e20065f2c4103e84a9eef29441209001e49b4f22b114';
+export const USDC_VAULT_ID = '0x260f94539f17abb12a020307ba59f82e467c86b630228f74d2ba8e57552e3481';
 
 // Pricing (hardcoded for now)
 export const FEE_PERCENT = 0.02; // 2%
