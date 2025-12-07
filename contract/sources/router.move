@@ -26,6 +26,10 @@ const USDC_TO_SUI_RATE_NUM: u64 = 64;
 const USDC_TO_SUI_RATE_DEN: u64 = 100;
 const DECIMAL_ADJUSTMENT: u64 = 1000; // 10^9 / 10^6 = 1000
 
+/// Expected gas cost for backend tx (in MIST = 10^-9 SUI)
+/// 0.005 SUI = 5,000,000 MIST
+const EXPECTED_GAS_COST_SUI: u64 = 5_000_000;
+
 // ======== Structs ========
 
 /// Protocol admin capability
@@ -49,10 +53,12 @@ fun init(ctx: &mut TxContext) {
 /// Flow:
 /// 1. User provides USDC payment
 /// 2. Calculate 2% service fee
-/// 3. Convert remaining USDC to SUI at 0.64 rate
-/// 4. Check minimum SUI output (safe gas check)
-/// 5. Deposit ALL USDC (including fee) to USDC vault
-/// 6. Release SUI from SUI vault to user
+/// 3. Calculate backend gas cost (SUI → USDC)
+/// 4. Subtract both from payment
+/// 5. Convert remaining USDC to SUI at 0.64 rate
+/// 6. Check minimum SUI output (safe gas check)
+/// 7. Deposit ALL USDC (including fee) to USDC vault
+/// 8. Release SUI from SUI vault to user
 public entry fun swap_usdc_for_sui<T>(
     usdc_vault: &mut EscrowVault<T>,
     sui_vault: &mut EscrowVault<SUI>,
@@ -67,25 +73,32 @@ public entry fun swap_usdc_for_sui<T>(
     // Validate input
     assert!(usdc_amount > 0, types::e_invalid_amount());
 
-    // Calculate 2% fee
+    // 1. Calculate 2% service fee
     let fee_amount = (usdc_amount * FEE_BPS) / BPS_DENOMINATOR;
 
-    // Calculate remaining amount after fee
-    let remaining_usdc = usdc_amount - fee_amount;
+    // 2. Calculate backend gas cost in USDC
+    // gas_cost_usdc = gas_sui / rate = gas_sui * rate_den / (rate_num * decimal_adj)
+    let gas_cost_usdc =
+        (EXPECTED_GAS_COST_SUI * USDC_TO_SUI_RATE_DEN) / 
+                        (USDC_TO_SUI_RATE_NUM * DECIMAL_ADJUSTMENT);
 
-    // Convert remaining USDC to SUI
+    // 3. Calculate remaining after fee and gas cost
+    let total_deductions = fee_amount + gas_cost_usdc;
+    assert!(usdc_amount > total_deductions, types::e_invalid_amount());
+    let remaining_usdc = usdc_amount - total_deductions;
+
+    // 4. Convert remaining USDC to SUI
     // usdc (6 decimals) * rate * decimal_adjustment = sui (9 decimals)
     let sui_out =
         (remaining_usdc * USDC_TO_SUI_RATE_NUM * DECIMAL_ADJUSTMENT) / USDC_TO_SUI_RATE_DEN;
 
-    // Check minimum SUI output (safe gas check)
+    // 5. Check minimum SUI output (slippage and safe gas check)
     assert!(sui_out >= min_sui_out, types::e_slippage_exceeded());
 
-    // Deposit ALL USDC (including fee) to USDC vault
-    // Fee stays in the vault as protocol revenue
+    // 6. Deposit ALL USDC (including fee and gas coverage) to USDC vault
     let _deposited = escrow::deposit(usdc_vault, usdc_payment, clock, ctx);
 
-    // Release SUI from SUI vault to user
+    // 7. Release SUI from SUI vault to user
     escrow::release(sui_vault, sui_out, user, clock, ctx);
 
     // Emit swap event
@@ -101,12 +114,20 @@ public entry fun swap_usdc_for_sui<T>(
 // ======== View Functions ========
 
 /// Calculate how much SUI user will receive for given USDC amount
-/// Returns (sui_out, fee_amount)
-public fun calculate_swap(usdc_amount: u64): (u64, u64) {
+/// Returns (sui_out, fee_amount, gas_cost_usdc)
+public fun calculate_swap(usdc_amount: u64): (u64, u64, u64) {
     let fee_amount = (usdc_amount * FEE_BPS) / BPS_DENOMINATOR;
-    let remaining = usdc_amount - fee_amount;
+    let gas_cost_usdc =
+        (EXPECTED_GAS_COST_SUI * USDC_TO_SUI_RATE_DEN) / 
+                        (USDC_TO_SUI_RATE_NUM * DECIMAL_ADJUSTMENT);
+
+    if (usdc_amount <= fee_amount + gas_cost_usdc) {
+        return (0, fee_amount, gas_cost_usdc)
+    };
+
+    let remaining = usdc_amount - fee_amount - gas_cost_usdc;
     let sui_out = (remaining * USDC_TO_SUI_RATE_NUM * DECIMAL_ADJUSTMENT) / USDC_TO_SUI_RATE_DEN;
-    (sui_out, fee_amount)
+    (sui_out, fee_amount, gas_cost_usdc)
 }
 
 /// Get current fee in basis points
@@ -117,6 +138,11 @@ public fun get_fee_bps(): u64 {
 /// Get current exchange rate as (numerator, denominator)
 public fun get_exchange_rate(): (u64, u64) {
     (USDC_TO_SUI_RATE_NUM, USDC_TO_SUI_RATE_DEN)
+}
+
+/// Get expected gas cost in SUI (MIST)
+public fun get_expected_gas_cost(): u64 {
+    EXPECTED_GAS_COST_SUI
 }
 
 // ======== Test Functions ========

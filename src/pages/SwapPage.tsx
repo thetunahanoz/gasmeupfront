@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCurrentAccount, useSuiClientQuery } from '@mysten/dapp-kit';
 import TokenInput from '../components/TokenInput';
-import { USDC_TYPE, FEE_PERCENT, USDC_TO_SUI_RATE } from '../constants';
+import { USDC_TYPE, FEE_PERCENT, USDC_TO_SUI_RATE, EXPECTED_GAS_COST_SUI } from '../constants';
 
 export default function SwapPage() {
     const navigate = useNavigate();
@@ -20,6 +20,9 @@ export default function SwapPage() {
     const totalUsdcBalance = usdcCoins?.data.reduce((sum, coin) => sum + parseInt(coin.balance), 0) || 0;
     const displayBalance = (totalUsdcBalance / 1_000_000).toFixed(2);
 
+    // Gas cost in USDC = gas_sui / rate
+    const gasCostUsdc = EXPECTED_GAS_COST_SUI / USDC_TO_SUI_RATE;
+
     const handlePayChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;
         if (!/^\d*\.?\d*$/.test(val)) return;
@@ -27,9 +30,12 @@ export default function SwapPage() {
         setPayAmount(val);
         if (val) {
             const usdcAmount = parseFloat(val);
-            // 2% fee, then convert at 0.64 rate
-            const afterFee = usdcAmount * (1 - FEE_PERCENT);
-            const suiOut = afterFee * USDC_TO_SUI_RATE;
+            // 2% service fee
+            const serviceFee = usdcAmount * FEE_PERCENT;
+            // After fee and gas cost deduction
+            const remaining = usdcAmount - serviceFee - gasCostUsdc;
+            // Convert to SUI
+            const suiOut = remaining > 0 ? remaining * USDC_TO_SUI_RATE : 0;
             setReceiveAmount(suiOut.toFixed(4));
         } else {
             setReceiveAmount('');
@@ -91,6 +97,10 @@ export default function SwapPage() {
                     <div className="flex justify-between text-slate-600 dark:text-slate-400">
                         <span>Service Fee</span>
                         <span className="font-medium text-slate-800 dark:text-slate-200">{FEE_PERCENT * 100}%</span>
+                    </div>
+                    <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                        <span>Gas Coverage</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">{gasCostUsdc.toFixed(4)} USDC</span>
                     </div>
                 </div>
 

@@ -29,6 +29,9 @@ export const SAFE_GAS_MULTIPLIER = 1.5;
 // Fallback minimum SUI if RPC fails (0.01 SUI = 10_000_000 MIST)
 export const FALLBACK_MIN_SUI = 10_000_000n;
 
+// Expected gas cost for backend tx (0.005 SUI = 5_000_000 MIST)
+export const EXPECTED_GAS_COST_SUI = 0.005;
+
 // Backend relay
 export const BACKEND_RELAY_URL = 'http://localhost:3001/sponsor';
 export const BACKEND_RELAY_PUBKEY = '0x7b36c63375bfb148650cbe7a0ccbc690e87a95cd85acf495ab41ffb9a1b83fdf';

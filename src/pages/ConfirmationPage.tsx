@@ -11,6 +11,7 @@ import {
     TYPICAL_GAS_UNITS,
     SAFE_GAS_MULTIPLIER,
     FALLBACK_MIN_SUI,
+    EXPECTED_GAS_COST_SUI,
 } from '../constants';
 
 export default function ConfirmationPage() {
@@ -31,17 +32,18 @@ export default function ConfirmationPage() {
     const [isProcessing, setIsProcessing] = useState(false);
     const [safeGasAmount, setSafeGasAmount] = useState<bigint>(FALLBACK_MIN_SUI);
 
+    // Gas cost in USDC = gas_sui / rate
+    const gasCostUsdc = EXPECTED_GAS_COST_SUI / USDC_TO_SUI_RATE;
+
     // Fetch reference gas price on mount
     useEffect(() => {
         const fetchGasPrice = async () => {
             try {
                 const gasPrice = await suiClient.getReferenceGasPrice();
-                // Safe gas = typical_units * gas_price * 1.5
                 const safeGas = BigInt(Math.floor(
                     Number(gasPrice) * Number(TYPICAL_GAS_UNITS) * SAFE_GAS_MULTIPLIER
                 ));
                 setSafeGasAmount(safeGas);
-                console.log(`Reference gas price: ${gasPrice}, Safe minimum: ${safeGas} MIST`);
             } catch (error) {
                 console.warn('Failed to fetch gas price, using fallback:', error);
                 setSafeGasAmount(FALLBACK_MIN_SUI);
@@ -58,7 +60,6 @@ export default function ConfirmationPage() {
                 return;
             }
 
-            // USDC has 6 decimals
             const requiredAmount = Number(payAmount) * Math.pow(10, USDC_DECIMALS);
 
             // Find a USDC coin with enough balance
@@ -106,7 +107,6 @@ export default function ConfirmationPage() {
         }
     };
 
-    // Display safe gas in SUI
     const safeGasDisplay = (Number(safeGasAmount) / Math.pow(10, SUI_DECIMALS)).toFixed(6);
 
     return (
@@ -165,8 +165,8 @@ export default function ConfirmationPage() {
                             <p className="text-white text-sm font-medium leading-normal text-right">{FEE_PERCENT * 100}%</p>
                         </div>
                         <div className="flex justify-between gap-x-6 py-2 border-b border-white/10">
-                            <p className="text-[#A0A0A0] text-sm font-normal leading-normal">Slippage Tolerance</p>
-                            <p className="text-white text-sm font-medium leading-normal text-right">5%</p>
+                            <p className="text-[#A0A0A0] text-sm font-normal leading-normal">Gas Coverage</p>
+                            <p className="text-white text-sm font-medium leading-normal text-right">{gasCostUsdc.toFixed(4)} USDC</p>
                         </div>
                         <div className="flex justify-between gap-x-6 py-2 border-b border-white/10">
                             <p className="text-[#A0A0A0] text-sm font-normal leading-normal">Min. for Gas</p>
