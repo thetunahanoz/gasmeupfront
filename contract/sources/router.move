@@ -5,10 +5,7 @@ use gasmeup::escrow::{Self, EscrowVault};
 use gasmeup::types;
 use sui::clock::{Clock, timestamp_ms};
 use sui::coin::{Self, Coin};
-use sui::object::UID;
 use sui::sui::SUI;
-use sui::transfer;
-use sui::tx_context::TxContext;
 
 // ======== Constants ========
 
