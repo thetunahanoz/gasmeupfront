@@ -8,6 +8,7 @@ use gasmeup::types;
 use sui::clock::{Clock, timestamp_ms};
 use sui::coin::{Self, Coin};
 use sui::object::UID;
+use sui::sui::SUI;
 use sui::transfer;
 use sui::tx_context::TxContext;
 
@@ -42,20 +43,20 @@ fun init(ctx: &mut TxContext) {
 
 // ======== Main Swap Function ========
 
-/// Swap tokens for gas (SUI coins)
+/// Swap tokens (e.g., USDC) for SUI gas
 /// This is the main entry point for user transactions
 ///
 /// Flow:
-/// 1. User provides tokens
+/// 1. User provides payment tokens (USDC)
 /// 2. Calculate required amounts and fees
-/// 3. Deposit tokens to escrow
+/// 3. Deposit tokens to token vault
 /// 4. Split fee to treasury
-/// 5. Transfer SUI gas to user (sponsored by backend relay)
+/// 5. Release SUI from SUI vault to user
 ///
-/// Note: In production with backend relay, the SUI transfer portion
-/// would be added to the PTB and gas paid by the relay service
+/// Note: Gas is paid by backend relay
 public entry fun swap_tokens_for_gas<T>(
-    vault: &mut EscrowVault<T>,
+    token_vault: &mut EscrowVault<T>,
+    sui_vault: &mut EscrowVault<SUI>,
     fee_config: &FeeConfig,
     treasury_config: &TreasuryConfig,
     mut user_tokens: Coin<T>,
@@ -82,11 +83,14 @@ public entry fun swap_tokens_for_gas<T>(
     // Split fee from user tokens
     let fee_coin = coin::split(&mut user_tokens, fee_amount, ctx);
 
-    // Deposit remaining tokens to escrow
-    let _deposited = escrow::deposit(vault, user_tokens, clock, ctx);
+    // Deposit remaining tokens to token escrow
+    let _deposited = escrow::deposit(token_vault, user_tokens, clock, ctx);
 
     // Transfer fee to treasury
     transfer::public_transfer(fee_coin, treasury_config.treasury_address);
+
+    // Release SUI from SUI vault to user
+    escrow::release(sui_vault, gas_amount, user, clock, ctx);
 
     // Emit swap event
     types::emit_swap_event(
@@ -96,20 +100,13 @@ public entry fun swap_tokens_for_gas<T>(
         fee_amount,
         timestamp_ms(clock),
     );
-
-    // Note: In production with backend relay:
-    // - The SUI transfer would be part of the PTB
-    // - Backend relay pays gas for this entire transaction
-    // - The user would receive `gas_amount` SUI automatically
-    //
-    // For MVP testing, the SUI transfer can be simulated externally
-    // or added as a separate step in the PTB
 }
 
 /// Swap tokens for a specific gas amount
 /// User specifies how much SUI they want, system calculates token cost
 public entry fun swap_for_exact_gas<T>(
-    vault: &mut EscrowVault<T>,
+    token_vault: &mut EscrowVault<T>,
+    sui_vault: &mut EscrowVault<SUI>,
     fee_config: &FeeConfig,
     treasury_config: &TreasuryConfig,
     mut user_tokens: Coin<T>,
@@ -144,11 +141,14 @@ public entry fun swap_for_exact_gas<T>(
     // Split fee from tokens
     let fee_coin = coin::split(&mut tokens_to_use, fee_amount, ctx);
 
-    // Deposit remaining tokens to escrow
-    let _deposited = escrow::deposit(vault, tokens_to_use, clock, ctx);
+    // Deposit remaining tokens to token escrow
+    let _deposited = escrow::deposit(token_vault, tokens_to_use, clock, ctx);
 
     // Transfer fee to treasury
     transfer::public_transfer(fee_coin, treasury_config.treasury_address);
+
+    // Release SUI from SUI vault to user
+    escrow::release(sui_vault, gas_amount, user, clock, ctx);
 
     // Emit swap event
     types::emit_swap_event(

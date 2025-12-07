@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useCurrentAccount, useSuiClientQuery } from '@mysten/dapp-kit';
 import { useSwapTransaction } from '../hooks/useSwapTransaction';
-import { USDT_TYPE } from '../constants';
+import { USDC_TYPE } from '../constants';
 
 export default function ConfirmationPage() {
     const navigate = useNavigate();
@@ -11,9 +11,11 @@ export default function ConfirmationPage() {
 
     const { swapTokensForGas } = useSwapTransaction();
     const account = useCurrentAccount();
+
+    // Query user's USDC coins
     const { data: coins } = useSuiClientQuery('getCoins', {
         owner: account?.address || '',
-        coinType: USDT_TYPE
+        coinType: USDC_TYPE
     });
 
     const [isProcessing, setIsProcessing] = useState(false);
@@ -22,31 +24,29 @@ export default function ConfirmationPage() {
         setIsProcessing(true);
         try {
             if (!coins || coins.data.length === 0) {
-                alert("No SUI/Token coins found in wallet!");
+                alert("No USDC found in wallet! Please get some USDC first.");
                 return;
             }
 
-            // Simple MVP selection: Pick first coin with enough balance
-            // In product: Merge coins or select best fit
-            // GASMEUP FIX: We must leave enough gas (e.g. 0.5 SUI) in the object if we are splitting from it.
-            const GAS_BUFFER_MIST = 500_000_000; // 0.5 SUI
-            const requiredAmount = Number(payAmount) * 1_000_000_000 + GAS_BUFFER_MIST;
+            // USDC has 6 decimals
+            const requiredAmount = Number(payAmount) * 1_000_000;
 
-            const coinToPay = coins.data.find(c => parseInt(c.balance) > requiredAmount);
+            // Find a USDC coin with enough balance
+            const coinToPay = coins.data.find(c => parseInt(c.balance) >= requiredAmount);
 
             if (!coinToPay) {
-                alert(`Insufficient balance! You need at least ${payAmount} SUI + 0.5 SUI for gas in a single object.`);
+                alert(`Insufficient USDC balance! You need at least ${payAmount} USDC.`);
                 return;
             }
 
-            const mockCoinId = coinToPay.coinObjectId;
+            // Calculate minimum SUI out with 5% slippage tolerance
+            // SUI has 9 decimals
+            const minGasOut = Math.floor(Number(receiveAmount) * 1_000_000_000 * 0.95);
 
-            // Call the swap function - now returns RelayResponse
+            // Call the swap function
             const result = await swapTokensForGas(
-                USDT_TYPE,
-                mockCoinId,
-                Number(payAmount) * 1_000_000_000,
-                Number(receiveAmount) * 1_000_000_000 * 0.95,
+                coinToPay.coinObjectId,
+                minGasOut,
                 account?.address || ''
             );
 
@@ -69,7 +69,7 @@ export default function ConfirmationPage() {
             <div className="w-full max-w-lg rounded-xl bg-[#1A1B23]/80 backdrop-blur-sm border border-white/10 shadow-2xl overflow-hidden">
                 {/* PageHeading Component */}
                 <div className="flex flex-wrap items-center justify-between gap-3 p-6 border-b border-white/10">
-                    <p className="text-white text-xl font-bold leading-tight">İşlemi Onayla</p>
+                    <p className="text-white text-xl font-bold leading-tight">Confirm Swap</p>
                     <button
                         onClick={() => navigate(-1)}
                         className="flex h-8 w-8 cursor-pointer items-center justify-center overflow-hidden rounded-full bg-[#2a2839] text-white/80 hover:text-white transition-colors"
@@ -79,16 +79,16 @@ export default function ConfirmationPage() {
                 </div>
 
                 <div className="p-2 sm:p-4">
-                    {/* Card Component: Amount to Pay */}
+                    {/* Card Component: Amount to Pay (USDC) */}
                     <div className="p-4 @container">
                         <div className="flex flex-col items-stretch justify-start rounded-xl sm:flex-row sm:items-center bg-[#2D2F3D]/50 p-4">
                             <div
-                                className="w-12 h-12 bg-center bg-no-repeat bg-contain rounded-full flex-shrink-0 mb-3 sm:mb-0 bg-white"
-                                style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuD8Nq1ROTrRFk4vKqkxZ7snTinHOs3CiiWPFa9qyp8Od8fmL0LNNsHpAdd4X2wiOEGRpvjCToYlKJ2lgtG30la-6KHoodSfkyXUQ-RvHa6Rb3KsM2wPb-pe00ka7acfaykq8ETFi0eA1HTe9wqOIhCYVmLdTxOe3r1pc7Jz-IFF_2qoigeUJ_37NCutaSrUtIfiotUB8ZKsKtuHJfa1uzJGoKk1ptKCiFUHDIewS5eJH4Z8XpG_Llt1fsnexbsdzYNhtjfjuUGnq8eT")' }}
+                                className="w-12 h-12 bg-center bg-no-repeat bg-contain rounded-full flex-shrink-0 mb-3 sm:mb-0"
+                                style={{ backgroundImage: 'url("https://cryptologos.cc/logos/usd-coin-usdc-logo.png")' }}
                             ></div>
                             <div className="flex w-full min-w-0 grow flex-col items-stretch justify-center gap-1 sm:px-4">
-                                <p className="text-[#A0A0A0] text-sm font-normal leading-normal">Ödeyeceğin Tutar</p>
-                                <p className="text-white text-2xl font-bold leading-tight tracking-[-0.015em]">{payAmount} SUI (Demo)</p>
+                                <p className="text-[#A0A0A0] text-sm font-normal leading-normal">You Pay</p>
+                                <p className="text-white text-2xl font-bold leading-tight tracking-[-0.015em]">{payAmount} USDC</p>
                             </div>
                         </div>
                     </div>
@@ -96,15 +96,15 @@ export default function ConfirmationPage() {
                     {/* MetaText Component: Swap Arrow */}
                     <p className="text-[#9f9db9] text-2xl font-normal leading-normal py-2 text-center">↓</p>
 
-                    {/* Card Component: Amount to Receive */}
+                    {/* Card Component: Amount to Receive (SUI) */}
                     <div className="p-4 @container">
                         <div className="flex flex-col items-stretch justify-start rounded-xl sm:flex-row sm:items-center bg-[#2D2F3D]/50 p-4">
                             <div
-                                className="w-12 h-12 bg-center bg-no-repeat bg-contain rounded-full flex-shrink-0 mb-3 sm:mb-0 bg-white"
-                                style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuD1jkCgW_DrHQkAWwpKjGiVlzPg1tWilcYOs1Z10ivDwPKj18r3L-ERui9QYnu0TDJVhT-Py-tHP5h4lWg2FgkAkORZ0jOfMwr89YHyVl0xmyubi5cm9GkbzFlhLWOhPMExDT-7lm7JSwCzbizmxxSiB-HlkQGw-E4RumLGnsJguAMINnPC2X172qmh7qIEpowees85nheI_5o5nP_aHcoeAXiky40E_NPUzuXN5yo0UHEQuxdyxyVNfWNGixRdTAZdqDHZNbVwjGBY")' }}
+                                className="w-12 h-12 bg-center bg-no-repeat bg-contain rounded-full flex-shrink-0 mb-3 sm:mb-0"
+                                style={{ backgroundImage: 'url("https://cryptologos.cc/logos/sui-sui-logo.png")' }}
                             ></div>
                             <div className="flex w-full min-w-0 grow flex-col items-stretch justify-center gap-1 sm:px-4">
-                                <p className="text-[#A0A0A0] text-sm font-normal leading-normal">Alacağın Tutar (Tahmini)</p>
+                                <p className="text-[#A0A0A0] text-sm font-normal leading-normal">You Receive (Est.)</p>
                                 <p className="text-white text-2xl font-bold leading-tight tracking-[-0.015em]">{receiveAmount} SUI</p>
                             </div>
                         </div>
@@ -113,16 +113,20 @@ export default function ConfirmationPage() {
                     {/* DescriptionList Component */}
                     <div className="p-6">
                         <div className="flex justify-between gap-x-6 py-2 border-b border-white/10">
-                            <p className="text-[#A0A0A0] text-sm font-normal leading-normal">1 USDT</p>
-                            <p className="text-white text-sm font-medium leading-normal text-right">~0.79 SUI</p>
+                            <p className="text-[#A0A0A0] text-sm font-normal leading-normal">Rate</p>
+                            <p className="text-white text-sm font-medium leading-normal text-right">1 USDC ≈ 0.1 SUI</p>
                         </div>
                         <div className="flex justify-between gap-x-6 py-2 border-b border-white/10">
-                            <p className="text-[#A0A0A0] text-sm font-normal leading-normal">GasMeUp! Komisyonu (0.3%)</p>
+                            <p className="text-[#A0A0A0] text-sm font-normal leading-normal">Service Fee (5%)</p>
                             <p className="text-white text-sm font-medium leading-normal text-right">Included</p>
                         </div>
+                        <div className="flex justify-between gap-x-6 py-2 border-b border-white/10">
+                            <p className="text-[#A0A0A0] text-sm font-normal leading-normal">Slippage Tolerance</p>
+                            <p className="text-white text-sm font-medium leading-normal text-right">5%</p>
+                        </div>
                         <div className="flex justify-between gap-x-6 pt-2">
-                            <p className="text-[#A0A0A0] text-sm font-normal leading-normal">Toplam Maliyet</p>
-                            <p className="text-white text-sm font-medium leading-normal text-right">{payAmount} SUI (Demo)</p>
+                            <p className="text-[#A0A0A0] text-sm font-normal leading-normal">Total Cost</p>
+                            <p className="text-white text-sm font-medium leading-normal text-right">{payAmount} USDC</p>
                         </div>
                     </div>
                 </div>
@@ -134,14 +138,14 @@ export default function ConfirmationPage() {
                         disabled={isProcessing}
                         className="flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-full h-12 px-6 bg-transparent text-white/90 text-base font-medium leading-normal border border-white/20 hover:bg-white/10 transition-colors disabled:opacity-50"
                     >
-                        <span className="truncate">İptal Et</span>
+                        <span className="truncate">Cancel</span>
                     </button>
                     <button
                         onClick={handleConfirm}
                         disabled={isProcessing}
                         className="flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-full h-12 px-6 bg-primary text-white text-base font-medium leading-normal hover:bg-opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-wait"
                     >
-                        <span className="truncate">{isProcessing ? 'İşleniyor...' : 'Onayla ve Cüzdana Gönder'}</span>
+                        <span className="truncate">{isProcessing ? 'Processing...' : 'Confirm Swap'}</span>
                     </button>
                 </div>
             </div>
