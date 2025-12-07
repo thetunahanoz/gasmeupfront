@@ -89,6 +89,7 @@ export default function ConfirmationPage() {
             // Call the swap function
             const result = await swapUsdcForSui(
                 coinToPay.coinObjectId,
+                requiredAmount,
                 Number(minSuiOut),
                 account?.address || ''
             );

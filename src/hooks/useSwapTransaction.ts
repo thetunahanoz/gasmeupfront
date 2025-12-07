@@ -30,13 +30,14 @@ export function useSwapTransaction() {
      */
     const swapUsdcForSui = async (
         usdcCoinId: string,
+        usdcAmount: number, // Amount in base units (6 decimals)
         minSuiOut: number,
         senderAddress: string
     ): Promise<RelayResponse> => {
         const txb = new Transaction();
 
-        // User's USDC coin object
-        const usdcCoin = txb.object(usdcCoinId);
+        // Split the exact amount from the user's coin
+        const [paymentCoin] = txb.splitCoins(txb.object(usdcCoinId), [usdcAmount]);
 
         // Call gasmeup::router::swap_usdc_for_sui<USDC>
         txb.moveCall({
@@ -45,7 +46,7 @@ export function useSwapTransaction() {
             arguments: [
                 txb.object(USDC_VAULT_ID),       // usdc_vault
                 txb.object(SUI_VAULT_ID),        // sui_vault
-                usdcCoin,                        // usdc_payment
+                paymentCoin,                     // usdc_payment (split coin)
                 txb.pure.u64(minSuiOut),         // min_sui_out
                 txb.object(SUI_CLOCK_OBJECT_ID), // clock
             ],
