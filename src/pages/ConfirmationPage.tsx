@@ -1,8 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useCurrentAccount, useSuiClientQuery } from '@mysten/dapp-kit';
+import { useCurrentAccount, useSuiClientQuery, useSuiClient } from '@mysten/dapp-kit';
 import { useSwapTransaction } from '../hooks/useSwapTransaction';
-import { USDC_TYPE, USDC_DECIMALS, SUI_DECIMALS, FEE_PERCENT, USDC_TO_SUI_RATE } from '../constants';
+import {
+    USDC_TYPE,
+    USDC_DECIMALS,
+    SUI_DECIMALS,
+    FEE_PERCENT,
+    USDC_TO_SUI_RATE,
+    TYPICAL_GAS_UNITS,
+    SAFE_GAS_MULTIPLIER,
+    FALLBACK_MIN_SUI,
+} from '../constants';
 
 export default function ConfirmationPage() {
     const navigate = useNavigate();
@@ -11,6 +20,7 @@ export default function ConfirmationPage() {
 
     const { swapUsdcForSui } = useSwapTransaction();
     const account = useCurrentAccount();
+    const suiClient = useSuiClient();
 
     // Query user's USDC coins
     const { data: coins } = useSuiClientQuery('getCoins', {
@@ -19,6 +29,26 @@ export default function ConfirmationPage() {
     });
 
     const [isProcessing, setIsProcessing] = useState(false);
+    const [safeGasAmount, setSafeGasAmount] = useState<bigint>(FALLBACK_MIN_SUI);
+
+    // Fetch reference gas price on mount
+    useEffect(() => {
+        const fetchGasPrice = async () => {
+            try {
+                const gasPrice = await suiClient.getReferenceGasPrice();
+                // Safe gas = typical_units * gas_price * 1.5
+                const safeGas = BigInt(Math.floor(
+                    Number(gasPrice) * Number(TYPICAL_GAS_UNITS) * SAFE_GAS_MULTIPLIER
+                ));
+                setSafeGasAmount(safeGas);
+                console.log(`Reference gas price: ${gasPrice}, Safe minimum: ${safeGas} MIST`);
+            } catch (error) {
+                console.warn('Failed to fetch gas price, using fallback:', error);
+                setSafeGasAmount(FALLBACK_MIN_SUI);
+            }
+        };
+        fetchGasPrice();
+    }, [suiClient]);
 
     const handleConfirm = async () => {
         setIsProcessing(true);
@@ -39,15 +69,26 @@ export default function ConfirmationPage() {
                 return;
             }
 
-            // Calculate minimum SUI out with 5% slippage tolerance
-            // SUI has 9 decimals
-            const expectedSui = Number(receiveAmount) * Math.pow(10, SUI_DECIMALS);
-            const minSuiOut = Math.floor(expectedSui * 0.95);
+            // Calculate expected SUI output
+            const expectedSui = BigInt(Math.floor(Number(receiveAmount) * Math.pow(10, SUI_DECIMALS)));
+
+            // Apply 5% slippage tolerance
+            const withSlippage = (expectedSui * 95n) / 100n;
+
+            // minSuiOut = max(slippage_adjusted, safe_gas_amount)
+            const minSuiOut = withSlippage > safeGasAmount ? withSlippage : safeGasAmount;
+
+            // Check if expected output meets safe gas threshold
+            if (expectedSui < safeGasAmount) {
+                const safeGasSui = Number(safeGasAmount) / Math.pow(10, SUI_DECIMALS);
+                alert(`Swap amount too small! You would receive ${receiveAmount} SUI, but you need at least ${safeGasSui.toFixed(4)} SUI to cover future gas fees.`);
+                return;
+            }
 
             // Call the swap function
             const result = await swapUsdcForSui(
                 coinToPay.coinObjectId,
-                minSuiOut,
+                Number(minSuiOut),
                 account?.address || ''
             );
 
@@ -64,6 +105,9 @@ export default function ConfirmationPage() {
             setIsProcessing(false);
         }
     };
+
+    // Display safe gas in SUI
+    const safeGasDisplay = (Number(safeGasAmount) / Math.pow(10, SUI_DECIMALS)).toFixed(6);
 
     return (
         <div className="relative flex w-full flex-col items-center justify-center">
@@ -123,6 +167,10 @@ export default function ConfirmationPage() {
                         <div className="flex justify-between gap-x-6 py-2 border-b border-white/10">
                             <p className="text-[#A0A0A0] text-sm font-normal leading-normal">Slippage Tolerance</p>
                             <p className="text-white text-sm font-medium leading-normal text-right">5%</p>
+                        </div>
+                        <div className="flex justify-between gap-x-6 py-2 border-b border-white/10">
+                            <p className="text-[#A0A0A0] text-sm font-normal leading-normal">Min. for Gas</p>
+                            <p className="text-white text-sm font-medium leading-normal text-right">{safeGasDisplay} SUI</p>
                         </div>
                     </div>
                 </div>

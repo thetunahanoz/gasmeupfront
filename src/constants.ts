@@ -21,6 +21,14 @@ export const USDC_VAULT_ID = '0x0';
 export const FEE_PERCENT = 0.02; // 2%
 export const USDC_TO_SUI_RATE = 0.64; // 1 USDC = 0.64 SUI
 
+// Safe gas calculation
+// Typical swap transaction uses ~5000 gas units
+export const TYPICAL_GAS_UNITS = 5000n;
+// Multiplier for safety margin (1.5x)
+export const SAFE_GAS_MULTIPLIER = 1.5;
+// Fallback minimum SUI if RPC fails (0.01 SUI = 10_000_000 MIST)
+export const FALLBACK_MIN_SUI = 10_000_000n;
+
 // Backend relay
 export const BACKEND_RELAY_URL = 'http://localhost:3001/sponsor';
 export const BACKEND_RELAY_PUBKEY = '0x7b36c63375bfb148650cbe7a0ccbc690e87a95cd85acf495ab41ffb9a1b83fdf';
