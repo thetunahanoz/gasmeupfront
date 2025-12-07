@@ -89,7 +89,7 @@ export default function SwapPage() {
                         <span className="font-medium text-slate-800 dark:text-slate-200">1 USDC = {USDC_TO_SUI_RATE} SUI</span>
                     </div>
                     <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                        <span>Platform Fee</span>
+                        <span>Service Fee</span>
                         <span className="font-medium text-slate-800 dark:text-slate-200">{FEE_PERCENT * 100}%</span>
                     </div>
                 </div>

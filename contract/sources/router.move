@@ -12,7 +12,7 @@ use sui::tx_context::TxContext;
 
 // ======== Constants ========
 
-/// Platform fee: 2% (200 basis points)
+/// Service fee: 2% (200 basis points)
 const FEE_BPS: u64 = 200;
 
 /// Basis points denominator
@@ -48,7 +48,7 @@ fun init(ctx: &mut TxContext) {
 ///
 /// Flow:
 /// 1. User provides USDC payment
-/// 2. Calculate 2% platform fee
+/// 2. Calculate 2% service fee
 /// 3. Convert remaining USDC to SUI at 0.64 rate
 /// 4. Check minimum SUI output (safe gas check)
 /// 5. Deposit ALL USDC (including fee) to USDC vault

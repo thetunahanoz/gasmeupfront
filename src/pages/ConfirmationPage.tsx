@@ -161,7 +161,7 @@ export default function ConfirmationPage() {
                             <p className="text-white text-sm font-medium leading-normal text-right">1 USDC = {USDC_TO_SUI_RATE} SUI</p>
                         </div>
                         <div className="flex justify-between gap-x-6 py-2 border-b border-white/10">
-                            <p className="text-[#A0A0A0] text-sm font-normal leading-normal">Platform Fee</p>
+                            <p className="text-[#A0A0A0] text-sm font-normal leading-normal">Service Fee</p>
                             <p className="text-white text-sm font-medium leading-normal text-right">{FEE_PERCENT * 100}%</p>
                         </div>
                         <div className="flex justify-between gap-x-6 py-2 border-b border-white/10">

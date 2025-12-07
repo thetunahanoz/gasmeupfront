@@ -24,7 +24,7 @@ export function useSwapTransaction() {
      * Swap USDC for SUI via backend relay.
      * 
      * Contract handles:
-     * - Platform fee (stays in USDC vault)
+     * - Service fee (stays in USDC vault)
      * - Conversion rate
      * - Min SUI check
      */
