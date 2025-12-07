@@ -2,14 +2,14 @@ import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useCurrentAccount, useSuiClientQuery } from '@mysten/dapp-kit';
 import { useSwapTransaction } from '../hooks/useSwapTransaction';
-import { USDC_TYPE } from '../constants';
+import { USDC_TYPE, USDC_DECIMALS, SUI_DECIMALS, FEE_PERCENT, USDC_TO_SUI_RATE } from '../constants';
 
 export default function ConfirmationPage() {
     const navigate = useNavigate();
     const location = useLocation();
     const { payAmount, receiveAmount } = location.state || { payAmount: '0', receiveAmount: '0' };
 
-    const { swapTokensForGas } = useSwapTransaction();
+    const { swapUsdcForSui } = useSwapTransaction();
     const account = useCurrentAccount();
 
     // Query user's USDC coins
@@ -24,12 +24,12 @@ export default function ConfirmationPage() {
         setIsProcessing(true);
         try {
             if (!coins || coins.data.length === 0) {
-                alert("No USDC found in wallet! Please get some USDC first.");
+                alert("No USDC found in wallet!");
                 return;
             }
 
             // USDC has 6 decimals
-            const requiredAmount = Number(payAmount) * 1_000_000;
+            const requiredAmount = Number(payAmount) * Math.pow(10, USDC_DECIMALS);
 
             // Find a USDC coin with enough balance
             const coinToPay = coins.data.find(c => parseInt(c.balance) >= requiredAmount);
@@ -41,12 +41,13 @@ export default function ConfirmationPage() {
 
             // Calculate minimum SUI out with 5% slippage tolerance
             // SUI has 9 decimals
-            const minGasOut = Math.floor(Number(receiveAmount) * 1_000_000_000 * 0.95);
+            const expectedSui = Number(receiveAmount) * Math.pow(10, SUI_DECIMALS);
+            const minSuiOut = Math.floor(expectedSui * 0.95);
 
             // Call the swap function
-            const result = await swapTokensForGas(
+            const result = await swapUsdcForSui(
                 coinToPay.coinObjectId,
-                minGasOut,
+                minSuiOut,
                 account?.address || ''
             );
 
@@ -67,7 +68,7 @@ export default function ConfirmationPage() {
     return (
         <div className="relative flex w-full flex-col items-center justify-center">
             <div className="w-full max-w-lg rounded-xl bg-[#1A1B23]/80 backdrop-blur-sm border border-white/10 shadow-2xl overflow-hidden">
-                {/* PageHeading Component */}
+                {/* Header */}
                 <div className="flex flex-wrap items-center justify-between gap-3 p-6 border-b border-white/10">
                     <p className="text-white text-xl font-bold leading-tight">Confirm Swap</p>
                     <button
@@ -79,7 +80,7 @@ export default function ConfirmationPage() {
                 </div>
 
                 <div className="p-2 sm:p-4">
-                    {/* Card Component: Amount to Pay (USDC) */}
+                    {/* You Pay (USDC) */}
                     <div className="p-4 @container">
                         <div className="flex flex-col items-stretch justify-start rounded-xl sm:flex-row sm:items-center bg-[#2D2F3D]/50 p-4">
                             <div
@@ -93,10 +94,9 @@ export default function ConfirmationPage() {
                         </div>
                     </div>
 
-                    {/* MetaText Component: Swap Arrow */}
                     <p className="text-[#9f9db9] text-2xl font-normal leading-normal py-2 text-center">↓</p>
 
-                    {/* Card Component: Amount to Receive (SUI) */}
+                    {/* You Receive (SUI) */}
                     <div className="p-4 @container">
                         <div className="flex flex-col items-stretch justify-start rounded-xl sm:flex-row sm:items-center bg-[#2D2F3D]/50 p-4">
                             <div
@@ -110,28 +110,24 @@ export default function ConfirmationPage() {
                         </div>
                     </div>
 
-                    {/* DescriptionList Component */}
+                    {/* Details */}
                     <div className="p-6">
                         <div className="flex justify-between gap-x-6 py-2 border-b border-white/10">
                             <p className="text-[#A0A0A0] text-sm font-normal leading-normal">Rate</p>
-                            <p className="text-white text-sm font-medium leading-normal text-right">1 USDC ≈ 0.1 SUI</p>
+                            <p className="text-white text-sm font-medium leading-normal text-right">1 USDC = {USDC_TO_SUI_RATE} SUI</p>
                         </div>
                         <div className="flex justify-between gap-x-6 py-2 border-b border-white/10">
-                            <p className="text-[#A0A0A0] text-sm font-normal leading-normal">Service Fee (5%)</p>
-                            <p className="text-white text-sm font-medium leading-normal text-right">Included</p>
+                            <p className="text-[#A0A0A0] text-sm font-normal leading-normal">Platform Fee</p>
+                            <p className="text-white text-sm font-medium leading-normal text-right">{FEE_PERCENT * 100}%</p>
                         </div>
                         <div className="flex justify-between gap-x-6 py-2 border-b border-white/10">
                             <p className="text-[#A0A0A0] text-sm font-normal leading-normal">Slippage Tolerance</p>
                             <p className="text-white text-sm font-medium leading-normal text-right">5%</p>
                         </div>
-                        <div className="flex justify-between gap-x-6 pt-2">
-                            <p className="text-[#A0A0A0] text-sm font-normal leading-normal">Total Cost</p>
-                            <p className="text-white text-sm font-medium leading-normal text-right">{payAmount} USDC</p>
-                        </div>
                     </div>
                 </div>
 
-                {/* Action Buttons */}
+                {/* Buttons */}
                 <div className="flex flex-col sm:flex-row gap-3 p-6 border-t border-white/10">
                     <button
                         onClick={() => navigate(-1)}

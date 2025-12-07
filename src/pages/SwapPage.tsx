@@ -2,16 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCurrentAccount, useSuiClientQuery } from '@mysten/dapp-kit';
 import TokenInput from '../components/TokenInput';
-import { USDC_TYPE } from '../constants';
-
-// Oracle price: 1 SUI = 10 USDC (simulated, matches contract)
-const SUI_PRICE_USDC = 10;
-
-// Protocol fee 5%
-const FEE_PERCENT = 0.05;
-
-// Profit markup 10%
-const MARKUP_PERCENT = 0.10;
+import { USDC_TYPE, FEE_PERCENT, USDC_TO_SUI_RATE } from '../constants';
 
 export default function SwapPage() {
     const navigate = useNavigate();
@@ -36,11 +27,10 @@ export default function SwapPage() {
         setPayAmount(val);
         if (val) {
             const usdcAmount = parseFloat(val);
-            // Calculate SUI: USDC / price, then apply markup and fee
-            const baseSui = usdcAmount / SUI_PRICE_USDC;
-            const afterMarkup = baseSui / (1 + MARKUP_PERCENT);
-            const afterFee = afterMarkup * (1 - FEE_PERCENT);
-            setReceiveAmount(afterFee.toFixed(4));
+            // 2% fee, then convert at 0.64 rate
+            const afterFee = usdcAmount * (1 - FEE_PERCENT);
+            const suiOut = afterFee * USDC_TO_SUI_RATE;
+            setReceiveAmount(suiOut.toFixed(4));
         } else {
             setReceiveAmount('');
         }
@@ -51,8 +41,6 @@ export default function SwapPage() {
             state: {
                 payAmount,
                 receiveAmount,
-                tokenSymbol: 'USDC',
-                receiveSymbol: 'SUI'
             }
         });
     };
@@ -98,15 +86,11 @@ export default function SwapPage() {
                 <div className="mt-4 flex flex-col gap-2 px-2 text-sm">
                     <div className="flex justify-between text-slate-600 dark:text-slate-400">
                         <span>Rate</span>
-                        <span className="font-medium text-slate-800 dark:text-slate-200">1 SUI ≈ {SUI_PRICE_USDC} USDC</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">1 USDC = {USDC_TO_SUI_RATE} SUI</span>
                     </div>
                     <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                        <span>Service Fee</span>
+                        <span>Platform Fee</span>
                         <span className="font-medium text-slate-800 dark:text-slate-200">{FEE_PERCENT * 100}%</span>
-                    </div>
-                    <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                        <span>Markup</span>
-                        <span className="font-medium text-slate-800 dark:text-slate-200">{MARKUP_PERCENT * 100}%</span>
                     </div>
                 </div>
 

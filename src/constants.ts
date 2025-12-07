@@ -3,18 +3,23 @@ export const NETWORK = 'testnet'; // or 'mainnet'
 export const GASMEUP_PACKAGE_ID = '0xc642e2b82e15dce050671a35e12f16cb19256bdc8cf0438bc94d866563bf9b2a';
 export const GASMEUP_MODULE = 'router';
 
-export const FEE_CONFIG_ID = '0x0'; // Placeholder for FeeConfig
-export const TREASURY_CONFIG_ID = '0x0'; // Placeholder for TreasuryConfig
-
 export const SUI_CLOCK_OBJECT_ID = '0x6';
 
 // Tokens
 export const SUI_TYPE = '0x2::sui::SUI';
 export const USDC_TYPE = '0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC';
 
+// Decimals
+export const SUI_DECIMALS = 9;
+export const USDC_DECIMALS = 6;
+
 // Vaults
 export const SUI_VAULT_ID = '0x0';
 export const USDC_VAULT_ID = '0x0';
+
+// Pricing (hardcoded for now)
+export const FEE_PERCENT = 0.02; // 2%
+export const USDC_TO_SUI_RATE = 0.64; // 1 USDC = 0.64 SUI
 
 // Backend relay
 export const BACKEND_RELAY_URL = 'http://localhost:3001/sponsor';

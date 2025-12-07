@@ -1,9 +1,7 @@
 /// Router module - Main entry point for GasMeUp protocol
-/// Coordinates PTB operations for atomic token-to-gas swaps
 module gasmeup::router;
 
 use gasmeup::escrow::{Self, EscrowVault};
-use gasmeup::fee::{Self, FeeConfig};
 use gasmeup::types;
 use sui::clock::{Clock, timestamp_ms};
 use sui::coin::{Self, Coin};
@@ -12,17 +10,27 @@ use sui::sui::SUI;
 use sui::transfer;
 use sui::tx_context::TxContext;
 
+// ======== Constants ========
+
+/// Platform fee: 2% (200 basis points)
+const FEE_BPS: u64 = 200;
+
+/// Basis points denominator
+const BPS_DENOMINATOR: u64 = 10000;
+
+/// Exchange rate: 1 USDC = 0.64 SUI
+/// Stored as 64 / 100 for integer math
+/// USDC has 6 decimals, SUI has 9 decimals
+/// So: sui_amount = usdc_amount * 64 / 100 * 1000 (to convert 6 decimals to 9)
+const USDC_TO_SUI_RATE_NUM: u64 = 64;
+const USDC_TO_SUI_RATE_DEN: u64 = 100;
+const DECIMAL_ADJUSTMENT: u64 = 1000; // 10^9 / 10^6 = 1000
+
 // ======== Structs ========
 
 /// Protocol admin capability
 public struct AdminCap has key, store {
     id: UID,
-}
-
-/// Treasury configuration
-public struct TreasuryConfig has key {
-    id: UID,
-    treasury_address: address,
 }
 
 // ======== Initialization ========
@@ -31,130 +39,60 @@ fun init(ctx: &mut TxContext) {
     let admin_cap = AdminCap {
         id: object::new(ctx),
     };
-
-    let treasury_config = TreasuryConfig {
-        id: object::new(ctx),
-        treasury_address: tx_context::sender(ctx),
-    };
-
     transfer::transfer(admin_cap, tx_context::sender(ctx));
-    transfer::share_object(treasury_config);
 }
 
 // ======== Main Swap Function ========
 
-/// Swap tokens (e.g., USDC) for SUI gas
-/// This is the main entry point for user transactions
+/// Swap USDC for SUI gas
 ///
 /// Flow:
-/// 1. User provides payment tokens (USDC)
-/// 2. Calculate required amounts and fees
-/// 3. Deposit tokens to token vault
-/// 4. Split fee to treasury
-/// 5. Release SUI from SUI vault to user
-///
-/// Note: Gas is paid by backend relay
-public entry fun swap_tokens_for_gas<T>(
-    token_vault: &mut EscrowVault<T>,
+/// 1. User provides USDC payment
+/// 2. Calculate 2% platform fee
+/// 3. Convert remaining USDC to SUI at 0.64 rate
+/// 4. Check minimum SUI output (safe gas check)
+/// 5. Deposit ALL USDC (including fee) to USDC vault
+/// 6. Release SUI from SUI vault to user
+public entry fun swap_usdc_for_sui<T>(
+    usdc_vault: &mut EscrowVault<T>,
     sui_vault: &mut EscrowVault<SUI>,
-    fee_config: &FeeConfig,
-    treasury_config: &TreasuryConfig,
-    mut user_tokens: Coin<T>,
-    min_gas_out: u64,
+    usdc_payment: Coin<T>,
+    min_sui_out: u64,
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
     let user = tx_context::sender(ctx);
-    let token_amount = coin::value(&user_tokens);
+    let usdc_amount = coin::value(&usdc_payment);
 
     // Validate input
-    assert!(token_amount > 0, types::e_invalid_amount());
+    assert!(usdc_amount > 0, types::e_invalid_amount());
 
-    // Calculate gas amount based on tokens provided
-    let gas_amount = fee::calculate_gas_amount(fee_config, token_amount);
+    // Calculate 2% fee
+    let fee_amount = (usdc_amount * FEE_BPS) / BPS_DENOMINATOR;
 
-    // Check slippage tolerance
-    assert!(gas_amount >= min_gas_out, types::e_slippage_exceeded());
+    // Calculate remaining amount after fee
+    let remaining_usdc = usdc_amount - fee_amount;
 
-    // Calculate fee
-    let fee_amount = fee::calculate_fee(fee_config, token_amount);
-    assert!(fee_amount < token_amount, types::e_invalid_amount());
+    // Convert remaining USDC to SUI
+    // usdc (6 decimals) * rate * decimal_adjustment = sui (9 decimals)
+    let sui_out =
+        (remaining_usdc * USDC_TO_SUI_RATE_NUM * DECIMAL_ADJUSTMENT) / USDC_TO_SUI_RATE_DEN;
 
-    // Split fee from user tokens
-    let fee_coin = coin::split(&mut user_tokens, fee_amount, ctx);
+    // Check minimum SUI output (safe gas check)
+    assert!(sui_out >= min_sui_out, types::e_slippage_exceeded());
 
-    // Deposit remaining tokens to token escrow
-    let _deposited = escrow::deposit(token_vault, user_tokens, clock, ctx);
-
-    // Transfer fee to treasury
-    transfer::public_transfer(fee_coin, treasury_config.treasury_address);
+    // Deposit ALL USDC (including fee) to USDC vault
+    // Fee stays in the vault as protocol revenue
+    let _deposited = escrow::deposit(usdc_vault, usdc_payment, clock, ctx);
 
     // Release SUI from SUI vault to user
-    escrow::release(sui_vault, gas_amount, user, clock, ctx);
+    escrow::release(sui_vault, sui_out, user, clock, ctx);
 
     // Emit swap event
     types::emit_swap_event(
         user,
-        token_amount,
-        gas_amount,
-        fee_amount,
-        timestamp_ms(clock),
-    );
-}
-
-/// Swap tokens for a specific gas amount
-/// User specifies how much SUI they want, system calculates token cost
-public entry fun swap_for_exact_gas<T>(
-    token_vault: &mut EscrowVault<T>,
-    sui_vault: &mut EscrowVault<SUI>,
-    fee_config: &FeeConfig,
-    treasury_config: &TreasuryConfig,
-    mut user_tokens: Coin<T>,
-    exact_gas_amount: u64,
-    clock: &Clock,
-    ctx: &mut TxContext,
-) {
-    let user = tx_context::sender(ctx);
-
-    // Calculate total token cost
-    let (total_cost, gas_amount, fee_amount) = fee::calculate_total_cost(
-        fee_config,
-        exact_gas_amount,
-    );
-
-    let token_amount = coin::value(&user_tokens);
-
-    // Ensure user has enough tokens
-    assert!(token_amount >= total_cost, types::e_insufficient_balance());
-
-    // Split exact amount needed
-    let mut tokens_to_use = if (token_amount > total_cost) {
-        let excess = token_amount - total_cost;
-        let excess_coin = coin::split(&mut user_tokens, excess, ctx);
-        // Return excess to user
-        transfer::public_transfer(excess_coin, user);
-        user_tokens
-    } else {
-        user_tokens
-    };
-
-    // Split fee from tokens
-    let fee_coin = coin::split(&mut tokens_to_use, fee_amount, ctx);
-
-    // Deposit remaining tokens to token escrow
-    let _deposited = escrow::deposit(token_vault, tokens_to_use, clock, ctx);
-
-    // Transfer fee to treasury
-    transfer::public_transfer(fee_coin, treasury_config.treasury_address);
-
-    // Release SUI from SUI vault to user
-    escrow::release(sui_vault, gas_amount, user, clock, ctx);
-
-    // Emit swap event
-    types::emit_swap_event(
-        user,
-        total_cost,
-        gas_amount,
+        usdc_amount,
+        sui_out,
         fee_amount,
         timestamp_ms(clock),
     );
@@ -162,32 +100,23 @@ public entry fun swap_for_exact_gas<T>(
 
 // ======== View Functions ========
 
-/// Get treasury address
-public fun get_treasury_address(config: &TreasuryConfig): address {
-    config.treasury_address
+/// Calculate how much SUI user will receive for given USDC amount
+/// Returns (sui_out, fee_amount)
+public fun calculate_swap(usdc_amount: u64): (u64, u64) {
+    let fee_amount = (usdc_amount * FEE_BPS) / BPS_DENOMINATOR;
+    let remaining = usdc_amount - fee_amount;
+    let sui_out = (remaining * USDC_TO_SUI_RATE_NUM * DECIMAL_ADJUSTMENT) / USDC_TO_SUI_RATE_DEN;
+    (sui_out, fee_amount)
 }
 
-/// Calculate swap quote: how much gas for given token amount
-public fun get_swap_quote(fee_config: &FeeConfig, token_amount: u64): (u64, u64) {
-    let gas_amount = fee::calculate_gas_amount(fee_config, token_amount);
-    let fee_amount = fee::calculate_fee(fee_config, token_amount);
-    (gas_amount, fee_amount)
+/// Get current fee in basis points
+public fun get_fee_bps(): u64 {
+    FEE_BPS
 }
 
-/// Calculate reverse quote: how much token needed for desired gas
-public fun get_reverse_quote(fee_config: &FeeConfig, desired_gas: u64): (u64, u64, u64) {
-    fee::calculate_total_cost(fee_config, desired_gas)
-}
-
-// ======== Admin Functions ========
-
-/// Update treasury address
-public entry fun update_treasury_address(
-    _admin_cap: &AdminCap,
-    config: &mut TreasuryConfig,
-    new_treasury: address,
-) {
-    config.treasury_address = new_treasury;
+/// Get current exchange rate as (numerator, denominator)
+public fun get_exchange_rate(): (u64, u64) {
+    (USDC_TO_SUI_RATE_NUM, USDC_TO_SUI_RATE_DEN)
 }
 
 // ======== Test Functions ========
